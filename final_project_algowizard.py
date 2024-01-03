@@ -29,6 +29,8 @@ from xgboost import XGBClassifier
 from sklearn.metrics import accuracy_score, classification_report  # Measure model accuracy and display summary statistics of model performance
 import streamlit as st  # Model deployment
 
+from imblearn.over_sampling import SMOTE
+
 import itertools
 
 """# 2. Exploratory Data Analysis (EDA) & Data Preprocessing
@@ -194,20 +196,111 @@ show_unique_count_variables(df)
 ### 2.3.1 Mempersiapkan data
 """
 
-# Mempersiapkan data
+#Mempersiapkan data
 def data_prepare(df):
     df_prep = df.copy()
+
+    # Encode variabel kategorikal
+    df_prep = pd.get_dummies(df_prep, columns=['Gender'], drop_first=True)
+
+    # Handle imbalance data menggunakan SMOTE
+    smote = SMOTE(sampling_strategy='auto')
+    X_smote, y_smote = smote.fit_resample(df_prep.drop('Exited', axis=1), df_prep['Exited'])
+
+    # Menggabungkan hasil oversampling ke dalam DataFrame
+    df_prep = pd.concat([pd.DataFrame(X_smote, columns=df_prep.drop('Exited', axis=1).columns), pd.Series(y_smote, name='Exited')], axis=1)
+
     return df_prep
 
 # Menyimpan DataFrame yang telah dipersiapkan
-df_prep = data_prepare(df)
+df = data_prepare(df)
+
+df
+
+# Plot target_column
+sns.countplot(x='Exited', data=df)
+plt.title('Count Plot of Target Column after SMOTE')
+plt.show()
+
+# 1
+# Menampilkan distribusi variabel dependen terhadap beberapa variabel independen
+fig, axarr = plt.subplots(2, 3, figsize=(18, 6))
+
+# Menampilkan distribusi variabel dependen 'Exited' terhadap variabel independen
+sns.countplot(x='Gender_Male', hue='Exited', data=df, ax=axarr[0, 0])
+
+# Menampilkan distribusi variabel dependen 'Exited' terhadap variabel independen 'Age'
+sns.countplot(x='Age', hue='Exited', data=df, ax=axarr[0, 1])
+
+# Menampilkan distribusi variabel dependen 'Exited' terhadap variabel independen 'CreditScore'
+sns.countplot(x='CreditScore', hue='Exited', data=df, ax=axarr[0, 2])
+
+# Menampilkan distribusi variabel dependen 'Exited' terhadap variabel independen 'EstimatedSalary'
+sns.countplot(x='EstimatedSalary', hue='Exited', data=df, ax=axarr[1, 0])
+
+# Menampilkan distribusi variabel dependen 'Exited' terhadap variabel independen 'HasCrCard'
+sns.countplot(x='HasCrCard', hue='Exited', data=df, ax=axarr[1, 1])
+
+# Menghitung jumlah nilai 0 (tidak Exited) dan nilai 1 (Exited) pada variabel dependen 'Exited'
+zero_count, one_count = df['Exited'].value_counts()
+print("Distribusi variabel dependen:")
+print("Exited 0 count:", zero_count)
+print("Exited 1 count:", one_count)
+
+fig.suptitle('Distribusi Variabel Dependen', fontsize=18)
+
+# Menampilkan plot
+plt.show()
+
+# 2
+# Menampilkan distribusi variabel numerik dalam DataFrame
+numerics = ['int16', 'int32', 'int64', 'float16', 'float32', 'float64']
+df_num_cols = df.select_dtypes(include=numerics)
+columns = df_num_cols.columns[: len(df_num_cols.columns)]
+
+fig = plt.figure()
+fig.set_size_inches(18, 15)
+length = len(columns)
+
+for i, j in zip(columns, range(length)):
+    plt.subplot(int(length / 2), 3, j + 1)
+    plt.subplots_adjust(wspace=0.2, hspace=0.5)
+    df_num_cols[i].hist(bins=20, edgecolor='black')
+    plt.title(i)
+
+fig.suptitle('Struktur Variabel Numerik', fontsize=18)
+plt.show()
+
+# 3
+# Menampilkan distribusi variabel dependen terhadap variabel lainnya
+numerics = ['int16', 'int32', 'int64', 'float16', 'float32', 'float64']
+df_dependent_var = df[df['Exited']==1]
+df_num_cols = df_dependent_var.select_dtypes(include=numerics)
+columns = df_num_cols.columns[:len(df_num_cols.columns)]
+fig = plt.figure()
+fig.set_size_inches(18, 15)
+length = len(columns)
+for i, j in zip(columns, range(length)):
+    plt.subplot(int(length/2), 3, j+1)
+    plt.subplots_adjust(wspace=0.2, hspace=0.5)
+    df_num_cols[i].hist(bins=20, edgecolor='black')
+    plt.title(i)
+fig.suptitle('Distribusi Variabel Dependen Terhadap Variabel Lainnya', fontsize=18)
+plt.show()
+
+# 4
+# Menampilkan distribusi variabel kategorikal terhadap variabel dependen
+fig, ax = plt.subplots(figsize=(7, 5))
+sns.countplot(x='Gender_Male', hue='Exited', data=df, ax=ax)
+ax.set_title('Distribusi Variabel Kategorikal Gender_Male Terhadap Variabel Dependen')
+plt.show()
 
 """### 2.3.2 Menangani Nilai-Nilai Yang Hilang (Missing Values)"""
 
-def process_and_display_data(df_prep):
+def process_and_display_data(df):
     print("=== Informasi nilai-nilai yang hilang ===")
     # Menangani nilai yang hilang
-    missing_value_len = df_prep.isnull().any().sum()
+    missing_value_len = df.isnull().any().sum()
     if missing_value_len == 0:
         print("Tidak ada nilai yang hilang.")
     else:
@@ -216,11 +309,11 @@ def process_and_display_data(df_prep):
 
     print("=== Jumlah unik untuk setiap variabel ===")
     # Menampilkan jumlah unik untuk setiap variabel yang telah dipersiapkan
-    for index, value in df_prep.nunique().items():
+    for index, value in df.nunique().items():
         print(f"{index}\n\t\t\t:{value}")
-    return df_prep
+    return df
 
-result_df = process_and_display_data(df_prep)
+result_df = process_and_display_data(df)
 
 """# 3. Model Training
 
