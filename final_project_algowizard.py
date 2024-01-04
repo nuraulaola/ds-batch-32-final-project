@@ -37,7 +37,7 @@ import itertools
 
 PIC : July, Ola, Osha, Faza
 
-## 2.1 Read Dataset
+## 2.1 Membaca Dataset
 """
 
 url = "https://raw.githubusercontent.com/nuraulaola/ds-batch-32-final-project/main/datasets/Dataset1_Customer_Churn.csv"
@@ -67,14 +67,14 @@ dependent_variable_name = "Exited"
 
 """## 2.2 EDA
 
-### 2.2.1 Analisis Nilai-Nilai Yang Hilang (Missing Values)
+### 2.2.1 Analisis Missing Values
 """
 
-# Memeriksa nilai-nilai yang hilang
+# Memeriksa missing values
 missing_values = df.isnull().sum()
 
-# Menampilkan jumlah nilai-nilai yang hilang
-print("Jumlah nilai-nilai yang hilang:")
+# Menampilkan jumlah missing values
+print("Jumlah missing values:")
 print(missing_values)
 
 """### 2.2.2 Analisis Nilai-Nilai Yang Duplikat"""
@@ -295,7 +295,7 @@ sns.countplot(x='Gender_Male', hue='Exited', data=df, ax=ax)
 ax.set_title('Distribusi Variabel Kategorikal Gender_Male Terhadap Variabel Dependen')
 plt.show()
 
-"""### 2.3.2 Menangani Nilai-Nilai Yang Hilang (Missing Values)"""
+"""### 2.3.2 Handling Missing Values"""
 
 def process_and_display_data(df):
     print("=== Informasi nilai-nilai yang hilang ===")
@@ -315,13 +315,90 @@ def process_and_display_data(df):
 
 result_df = process_and_display_data(df)
 
+"""### 2.3.3 Handling Outliers"""
+
+def handle_outliers(df):
+    # Deteksi outlier dengan metode LOF
+    lof = LocalOutlierFactor()
+    outliers = lof.fit_predict(df.drop('Exited', axis=1))
+    # Hapus baris yang teridentifikasi outlier
+    df_no_outliers = df.loc[outliers != -1]
+
+    return df_no_outliers
+
+df = handle_outliers(df)
+
+# Menampilkan informasi setelah handling outliers
+result_df = process_and_display_data(df)
+
+# Sebelum Penanganan Outlier
+numerics = ['int16', 'int32', 'int64', 'float16', 'float32', 'float64']
+df_num_cols_before = df.select_dtypes(include=numerics)
+columns_before = df_num_cols_before.columns[: len(df_num_cols_before.columns)]
+
+fig_before = plt.figure()
+fig_before.set_size_inches(18, 15)
+length_before = len(columns_before)
+
+for i, j in zip(columns_before, range(length_before)):
+    plt.subplot(int(length_before / 2), 3, j + 1)
+    plt.subplots_adjust(wspace=0.2, hspace=0.5)
+    df_num_cols_before[i].hist(bins=20, edgecolor='black')
+    plt.title(f'Sebelum Penanganan Outlier - {i}')
+
+fig_before.suptitle('Perbandingan Distribusi Fitur Numerik Sebelum dan Sesudah Penanganan Outlier', fontsize=18)
+plt.show()
+
+# Setelah Penanganan Outlier
+df_no_outliers = handle_outliers(df)
+
+numerics = ['int16', 'int32', 'int64', 'float16', 'float32', 'float64']
+df_num_cols_after = df_no_outliers.select_dtypes(include=numerics)
+columns_after = df_num_cols_after.columns[: len(df_num_cols_after.columns)]
+
+fig_after = plt.figure()
+fig_after.set_size_inches(18, 15)
+length_after = len(columns_after)
+
+for i, j in zip(columns_after, range(length_after)):
+    plt.subplot(int(length_after / 2), 3, j + 1)
+    plt.subplots_adjust(wspace=0.2, hspace=0.5)
+    df_num_cols_after[i].hist(bins=20, edgecolor='black')
+    plt.title(f'Setelah Penanganan Outlier - {i}')
+
+fig_after.suptitle('Perbandingan Distribusi Fitur Numerik Sebelum dan Sesudah Penanganan Outlier', fontsize=18)
+plt.show()
+
+# Sebelum Penanganan Outlier
+fig_before_box = plt.figure()
+fig_before_box.set_size_inches(18, 8)
+sns.set(style="whitegrid")
+
+for i, column in enumerate(columns_before):
+    plt.subplot(2, 3, i + 1)
+    sns.boxplot(x=df_num_cols_before[column], color='skyblue')
+    plt.title(f'Boxplot Sebelum Penanganan Outlier - {column}')
+
+fig_before_box.suptitle('Perbandingan Boxplot Fitur Numerik Sebelum Penanganan Outlier', fontsize=18)
+plt.show()
+
+# Setelah Penanganan Outlier
+fig_after_box = plt.figure()
+fig_after_box.set_size_inches(18, 8)
+
+for i, column in enumerate(columns_after):
+    plt.subplot(2, 3, i + 1)
+    sns.boxplot(x=df_num_cols_after[column], color='lightcoral')
+    plt.title(f'Boxplot Setelah Penanganan Outlier - {column}')
+
+fig_after_box.suptitle('Perbandingan Boxplot Fitur Numerik Setelah Penanganan Outlier', fontsize=18)
+plt.show()
+
 """# 3. Model Training
 
 PIC : Timmy, Eko
 
 ## 3.1 Splitting Data
-
-## 3.2 Scaling
 """
 
 def model_prepare(df_model):
@@ -333,7 +410,10 @@ def model_prepare(df_model):
     X_test = sc.transform (X_test)
     return X_train, X_test, y_train, y_test
 
-"""## 3.3 Model Training"""
+"""## 3.2 Scaling
+
+## 3.3 Model Training
+"""
 
 def data_training(X_train, X_test, y_train, y_test):
 
@@ -363,8 +443,12 @@ def data_training(X_train, X_test, y_train, y_test):
         # df_result.at[index, res_cols] = idx_res_values
         df_result.loc[index, res_cols] = idx_res_values
         index += 1
-    df_result = df_result.sort_values("accuracy_score", ascending=False).reset_index(drop=True)
-    return df_result
+    return df_result.sort_values('accuracy_score', ascending=False)
+    # df_result = df_result.sort_values("accuracy_score", ascending=False).reset_index(drop=True)
+    # return df_result
+
+# Model_prepare test, train split 0.2
+X_train, X_test, y_train, y_test = model_prepare(df_model=df_encoded)
 
 """## 3.3.1 | Logistic Regression"""
 
