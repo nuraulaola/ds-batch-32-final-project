@@ -10,24 +10,26 @@ Original file is located at
 """
 
 !pip install streamlit
-import pandas as pd  # Manipulasi dan analisis data
-import numpy as np  # Operasi numerik pada data
-import matplotlib.pyplot as plt  # Visualisasi data
-import seaborn as sns  # Visualisasi data
+import pandas as pd  # Data manipulation and analysis
+import numpy as np  # Numerical operations on data
+import matplotlib.pyplot as plt  # Data visualization
+import seaborn as sns  # Data visualization
 
-from sklearn.preprocessing import StandardScaler  # Melakukan scaling
-from sklearn.model_selection import train_test_split  # Membagi data menjadi set pelatihan dan pengujian
+from sklearn.preprocessing import StandardScaler  # Perform scaling
+from sklearn.model_selection import train_test_split  # Split data into training and testing sets
 
-# Model ML
+# ML model
 from sklearn.linear_model import LogisticRegression
 from sklearn.neighbors import KNeighborsClassifier, LocalOutlierFactor
 from sklearn.tree import DecisionTreeClassifier
+from sklearn.svm import SVC
 from lightgbm import LGBMClassifier
-from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier, AdaBoostClassifier
 from xgboost import XGBClassifier
+from sklearn.model_selection import GridSearchCV
 
-from sklearn.metrics import accuracy_score, classification_report  # Mengukur akurasi model dan menampilkan statistik ringkasan kinerja model
-import streamlit as st  # Penyebaran model
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix  # Measure model accuracy and display summary statistics of model performance
+import streamlit as st  # Model deployment
 
 from imblearn.over_sampling import SMOTE
 
@@ -71,7 +73,7 @@ dependent_variable_name = "Exited"
 
 """## 2.2 EDA
 
-### 2.2.1 Analisis Missing Values
+### 2.2.1 Analisis Missing Values dan Jumlah Nilai Unik di Setiap Kolom
 """
 
 # Memeriksa missing values
@@ -80,6 +82,18 @@ missing_values = df.isnull().sum()
 # Menampilkan jumlah missing values
 print("Jumlah missing values:")
 print(missing_values)
+
+# Menampilkan jumlah nilai unik dari setiap variabel dalam dataframe
+def show_unique_count_variables(df):
+    # Menghitung jumlah nilai unik
+    unique_counts = df.nunique()
+
+    # Menampilkan jumlah nilai unik
+    print("\nJumlah nilai unik:")
+    print(unique_counts)
+
+# Menggunakan fungsi untuk menampilkan jumlah nilai unik
+show_unique_count_variables(df)
 
 """### 2.2.2 Analisis Nilai-Nilai Yang Duplikat"""
 
@@ -111,39 +125,61 @@ df.info()
 print("Statistik deskriptif dari kolom numerik DataFrame:")
 df.describe()
 
-"""### 2.2.6 Plot Distribusi"""
+"""### 2.2.6 Plot Distribusi Variabel Dependen Terhadap Beberapa Variabel Independen"""
 
-# 1
 # Menampilkan distribusi variabel dependen terhadap beberapa variabel independen
 fig, axarr = plt.subplots(2, 3, figsize=(18, 6))
 
 # Menampilkan distribusi variabel dependen 'Exited' terhadap variabel independen 'Gender'
-sns.countplot(x='Gender', hue='Exited', data=df, ax=axarr[0, 0])
+sns.histplot(x='Gender', hue='Exited', data=df, ax=axarr[0, 0], multiple='stack', kde=True)
 
 # Menampilkan distribusi variabel dependen 'Exited' terhadap variabel independen 'Age'
-sns.countplot(x='Age', hue='Exited', data=df, ax=axarr[0, 1])
+sns.histplot(x='Age', hue='Exited', data=df, ax=axarr[0, 1], multiple='stack', kde=True)
 
 # Menampilkan distribusi variabel dependen 'Exited' terhadap variabel independen 'CreditScore'
-sns.countplot(x='CreditScore', hue='Exited', data=df, ax=axarr[0, 2])
+sns.histplot(x='CreditScore', hue='Exited', data=df, ax=axarr[0, 2], multiple='stack', kde=True)
 
 # Menampilkan distribusi variabel dependen 'Exited' terhadap variabel independen 'EstimatedSalary'
-sns.countplot(x='EstimatedSalary', hue='Exited', data=df, ax=axarr[1, 0])
+sns.histplot(x='EstimatedSalary', hue='Exited', data=df, ax=axarr[1, 0], multiple='stack', kde=True)
 
 # Menampilkan distribusi variabel dependen 'Exited' terhadap variabel independen 'HasCrCard'
-sns.countplot(x='HasCrCard', hue='Exited', data=df, ax=axarr[1, 1])
+sns.histplot(x='HasCrCard', hue='Exited', data=df, ax=axarr[1, 1], multiple='stack', kde=True)
 
 # Menghitung jumlah nilai 0 (tidak Exited) dan nilai 1 (Exited) pada variabel dependen 'Exited'
 zero_count, one_count = df['Exited'].value_counts()
-print("Distribusi variabel dependen:")
+print("Distribusi variabel dependen terhadap beberapa variabel independen:")
 print("Exited 0 count:", zero_count)
 print("Exited 1 count:", one_count)
 
-fig.suptitle('Distribusi Variabel Dependen', fontsize=18)
+fig.suptitle('Distribusi Variabel Dependen Terhadap Beberapa Variabel Independen', fontsize=18)
 
 # Menampilkan plot
 plt.show()
 
-# 2
+"""1. **Distribusi variabel dependen 'Exited' terhadap variabel independen 'Gender':**
+- Female memiliki jumlah yang lebih rendah pada kategori '1' (Exited), yang sesuai dengan rendahnya nilai KDE pada kategori tertentu.
+- Male memiliki jumlah yang lebih tinggi pada kategori '0' (Not Exited), yang sesuai dengan tingginya nilai KDE pada kategori tertentu.
+
+2. **Distribusi variabel dependen 'Exited' terhadap variabel independen 'Age':**
+- Terdapat peningkatan jumlah Exited dari rentang usia '0-18' hingga '50+', dengan puncaknya pada kategori '50+'. (terlihat dari bentuk distribusi normal yang miring ke kanan / right-skewed)
+- Distribusi yang miring ke kanan mencerminkan bahwa sebagian besar nasabah berada di kelompok usia yang lebih muda. Fakta bahwa rentang usia '19-35' memiliki jumlah Exited yang tinggi menunjukkan bahwa di antara nasabah muda, tingkat churn cenderung lebih tinggi.
+- Distribusi yang miring ke kanan dapat menunjukkan bahwa meskipun kebanyakan nasabah berada di kelompok usia yang lebih muda, ada juga sejumlah nasabah yang lebih tua di rentang '36-50'. Jumlah Exited yang tinggi di rentang ini menunjukkan bahwa bahkan di antara nasabah yang lebih tua, tingkat churn tetap signifikan.
+
+3. **Distribusi variabel dependen 'Exited' terhadap variabel independen 'CreditScore':**
+- Bentuk distribusi normal menunjukkan bahwa sebagian besar nasabah memiliki CreditScore yang berpusat di sekitar mean.
+- Namun, lonjakan di atas sumbu x pada nilai 800 mengindikasikan adanya kelompok kecil tetapi signifikan dari nasabah dengan CreditScore sangat tinggi.
+
+4. **Distribusi variabel dependen 'Exited' terhadap variabel independen 'EstimatedSalary':**
+- Distribusi seragam EstimatedSalary menunjukkan bahwa estimasi pendapatan nasabah cenderung stabil dan tidak mengalami variasi yang signifikan.
+- Meskipun demikian, tidak ada pola khusus atau tren yang terlihat dalam hubungannya dengan tingkat churn. Hal ini mengindikasikan bahwa faktor-faktor lain di luar estimasi pendapatan mungkin lebih berperan dalam keputusan nasabah untuk bertahan atau keluar.
+
+5. **Distribusi variabel dependen 'Exited' terhadap variabel independen 'HasCrCard':**
+- Terdapat perbedaan yang signifikan antara pemegang kartu kredit (HasCrCard=1) dan bukan pemegang kartu kredit (HasCrCard=0) dalam hal jumlah Exited.
+- Pemegang kartu kredit (HasCrCard=1) memiliki jumlah Exited yang lebih tinggi dibandingkan dengan yang bukan pemegang kartu kredit.
+
+### 2.2.7 Plot Distribusi Variabel Numerik
+"""
+
 # Menampilkan distribusi variabel numerik dalam DataFrame
 numerics = ['int16', 'int32', 'int64', 'float16', 'float32', 'float64']
 df_num_cols = df.select_dtypes(include=numerics)
@@ -156,13 +192,34 @@ length = len(columns)
 for i, j in zip(columns, range(length)):
     plt.subplot(int(length / 2), 3, j + 1)
     plt.subplots_adjust(wspace=0.2, hspace=0.5)
-    df_num_cols[i].hist(bins=20, edgecolor='black')
+    sns.histplot(df_num_cols[i], bins=20, kde=True, color='skyblue', edgecolor='black')
     plt.title(i)
 
-fig.suptitle('Struktur Variabel Numerik', fontsize=18)
+fig.suptitle('Distribusi Variabel Numerik', fontsize=18)
 plt.show()
 
-# 3
+"""1. **Distribusi Variabel "CustomerId":**
+- Distribusi variabel "CustomerId" cenderung seragam, dengan jumlah frekuensi relatif stabil di setiap bin edge.
+
+2. **Distribusi Variabel "Age":**
+- Distribusi variabel "Age" menunjukkan adanya puncak di sebelah kiri dan landai ke kanan (skewed right).
+- Rentang usia dari '19-35' memiliki jumlah frekuensi "Exited" yang lebih tinggi dibandingkan dengan '0-18', tetapi menurun untuk '36-50'.
+
+3. **Distribusi Variabel "CreditScore":**
+- Distribusi variabel "CreditScore" memiliki bentuk yang mirip dengan distribusi normal, tetapi terdapat peningkatan yang tiba-tiba melonjak di atas nilai 800.
+
+4. **Distribusi Variabel "EstimatedSalary":**
+- Distribusi variabel "EstimatedSalary" cenderung seragam, dengan jumlah frekuensi yang relatif stabil di setiap bin edge.
+
+5. **Distribusi Variabel "HasCrCard":**
+- Distribusi variabel "HasCrCard" menunjukkan bahwa pemegang kartu kredit (HasCrCard=1) memiliki jumlah frekuensi "Exited" yang lebih tinggi dibandingkan dengan yang bukan pemegang kartu kredit (HasCrCard=0).
+
+6. **Distribusi Variabel "Exited":**
+- Distribusi variabel "Exited" menunjukkan bahwa mayoritas data memiliki label 0 (Not Exited) dengan frekuensi yang tinggi, sementara jumlah frekuensi label 1 (Exited) hanya muncul di akhir (nilai 1.00).
+
+### 2.2.8 Plot Distribusi Variabel Numerik (Spesifik Pelanggan yang Keluar Layanan)
+"""
+
 # Menampilkan distribusi variabel dependen terhadap variabel lainnya
 numerics = ['int16', 'int32', 'int64', 'float16', 'float32', 'float64']
 df_dependent_var = df[df['Exited']==1]
@@ -174,28 +231,70 @@ length = len(columns)
 for i, j in zip(columns, range(length)):
     plt.subplot(int(length/2), 3, j+1)
     plt.subplots_adjust(wspace=0.2, hspace=0.5)
-    df_num_cols[i].hist(bins=20, edgecolor='black')
+    sns.histplot(df_num_cols[i], bins=20, kde=True, color='skyblue', edgecolor='black')
     plt.title(i)
 fig.suptitle('Distribusi Variabel Dependen Terhadap Variabel Lainnya', fontsize=18)
 plt.show()
 
-# 4
-# Menampilkan distribusi variabel kategorikal 'Gender' terhadap variabel dependen
-fig, ax = plt.subplots(figsize=(7, 5))
-sns.countplot(x='Gender', hue='Exited', data=df, ax=ax)
-ax.set_title('Distribusi Variabel Kategorikal Gender Terhadap Variabel Dependen')
+"""1. **Variabel "CustomerId":**
+- Distribusi variabel "CustomerId" menunjukkan bentuk plot yang seragam, dengan frekuensi yang relatif stabil di setiap bin edge.
+
+2. **Variabel "Age":**
+- Distribusi variabel "Age" menunjukkan bentuk plot yang normal dengan sedikit right-skewed.
+- Mayoritas data berada dalam rentang usia '36-50'.
+
+3. **Variabel "CreditScore":**
+- Distribusi variabel "CreditScore" memiliki bentuk plot yang normal, namun sedikit left-skewed.
+
+4. **Variabel "EstimatedSalary":**
+- Distribusi variabel "EstimatedSalary" menunjukkan bentuk plot yang seragam, dengan frekuensi yang relatif stabil di setiap bin edge.
+
+5. **Variabel "HasCrCard":**
+- Distribusi variabel "HasCrCard" menunjukkan bahwa mayoritas data berada pada kategori pemegang kartu kredit (HasCrCard=1).
+- Pemegang kartu kredit (HasCrCard=1) memiliki jumlah frekuensi "Exited" yang lebih tinggi dibandingkan dengan yang bukan pemegang kartu kredit (HasCrCard=0).
+
+6. **Variabel "Exited":**
+- Dalam plot distribusi variabel "Exited", tidak ditampilkan frekuensi yang berkaitan dengan pelanggan yang tidak keluar dari layanan ("Exited"=0), dan fokusnya adalah pada pelanggan yang telah keluar ("Exited"=1).
+
+### 2.2.9 Korelasi antar Variabel
+"""
+
+# Matriks korelasi
+correlation_matrix = df.corr()
+
+# Heatmap korelasi
+plt.figure(figsize=(12, 8))
+sns.heatmap(correlation_matrix, annot=True, cmap="Blues", fmt=".2f", linewidths=0.5)
+plt.title('Matriks Korelasi Antar Variabel')
 plt.show()
 
-"""### 2.2.7 Analisis Nilai-Nilai Unik"""
+"""1. **Korelasi antara Umur (Age) dan Exited:**
+- Korelasi positif sebesar 0.36 menunjukkan bahwa ada hubungan yang moderat antara usia nasabah dan kecenderungan untuk keluar dari layanan.
+- Ini dapat diartikan bahwa semakin tua seseorang, semakin cenderung mereka bertahan dalam layanan.
 
-# Menampilkan jumlah nilai unik dari setiap variabel dalam dataframe
-def show_unique_count_variables(df):
-    for index, value in df.nunique().items():
-        print(str(index) + "\n\t\t\t:" + str(value))
+2. **Korelasi antara Jenis Kelamin (Gender) dan Exited:**
+- Korelasi negatif sebesar -0.31 menunjukkan bahwa terdapat hubungan cukup negatif antara jenis kelamin (laki-laki) dan kecenderungan untuk keluar dari layanan.
+- Hal ini dapat diartikan bahwa nasabah perempuan mungkin cenderung lebih loyal terhadap layanan dibandingkan dengan nasabah laki-laki.
 
-show_unique_count_variables(df)
+3. **Korelasi antara Kepemilikan Kartu Kredit (HasCrCard) dan Exited:**
+- Korelasi negatif sebesar -0.17 menunjukkan bahwa kepemilikan kartu kredit memiliki pengaruh cukup negatif terhadap kecenderungan keluar dari layanan.
+- Artinya, nasabah yang memiliki kartu kredit cenderung lebih setia terhadap layanan.
 
-"""## 2.3 Pra-Pemrosesan Data
+4. **Korelasi antara Skor Kredit (CreditScore) dan Exited:**
+- Korelasi negatif sebesar -0.04 menunjukkan bahwa terdapat hubungan yang kurang kuat antara skor kredit dan kecenderungan keluar dari layanan.
+- Hal ini mungkin menandakan bahwa nasabah dengan skor kredit yang lebih tinggi memiliki kecenderungan yang sedikit lebih rendah untuk keluar dari layanan.
+
+5. **Korelasi antara Estimasi Pendapatan (EstimatedSalary) dan Exited:**
+- Korelasi positif yang sangat lemah (0.0075) menunjukkan bahwa tidak ada korelasi yang signifikan antara estimasi pendapatan dan kecenderungan keluar dari layanan.
+- Dengan kata lain, estimasi pendapatan tidak menjadi faktor utama yang mempengaruhi keputusan nasabah untuk keluar dari layanan.
+
+6. **Korelasi antara Kepemilikan Kartu Kredit (HasCrCard) dan Jenis Kelamin (Gender):**
+- Korelasi positif sebesar 0.078 menunjukkan bahwa ada hubungan positif yang kurang kuat antara kepemilikan kartu kredit dan jenis kelamin laki-laki.
+- Artinya, laki-laki mungkin sedikit lebih mungkin memiliki kartu kredit.
+
+### 2.2.9 Analisis Distribusi Variabel Numerik
+
+## 2.3 Pra-Pemrosesan Data
 
 ### 2.3.1 Mempersiapkan data
 """
@@ -219,37 +318,37 @@ def data_prepare(df):
 # Menyimpan DataFrame yang telah dipersiapkan
 df = data_prepare(df)
 
-# Plot target_column
-sns.countplot(x='Exited', data=df)
-plt.title('Count Plot of Target Column after SMOTE')
+# Count plot dari kolom target setelah SMOTE
+sns.countplot(x='Exited', data=df, palette='Blues')
+plt.title('Count Plot dari Kolom Target setelah SMOTE')
 plt.show()
 
 # 1
 # Menampilkan distribusi variabel dependen terhadap beberapa variabel independen
 fig, axarr = plt.subplots(2, 3, figsize=(18, 6))
 
-# Menampilkan distribusi variabel dependen 'Exited' terhadap variabel independen
-sns.countplot(x='Gender_Male', hue='Exited', data=df, ax=axarr[0, 0])
+# Menampilkan distribusi variabel dependen 'Exited' terhadap variabel independen 'Gender_Male'
+sns.histplot(x='Gender_Male', hue='Exited', data=df, ax=axarr[0, 0], multiple='stack', kde=True)
 
 # Menampilkan distribusi variabel dependen 'Exited' terhadap variabel independen 'Age'
-sns.countplot(x='Age', hue='Exited', data=df, ax=axarr[0, 1])
+sns.histplot(x='Age', hue='Exited', data=df, ax=axarr[0, 1], multiple='stack', kde=True)
 
 # Menampilkan distribusi variabel dependen 'Exited' terhadap variabel independen 'CreditScore'
-sns.countplot(x='CreditScore', hue='Exited', data=df, ax=axarr[0, 2])
+sns.histplot(x='CreditScore', hue='Exited', data=df, ax=axarr[0, 2], multiple='stack', kde=True)
 
 # Menampilkan distribusi variabel dependen 'Exited' terhadap variabel independen 'EstimatedSalary'
-sns.countplot(x='EstimatedSalary', hue='Exited', data=df, ax=axarr[1, 0])
+sns.histplot(x='EstimatedSalary', hue='Exited', data=df, ax=axarr[1, 0], multiple='stack', kde=True)
 
 # Menampilkan distribusi variabel dependen 'Exited' terhadap variabel independen 'HasCrCard'
-sns.countplot(x='HasCrCard', hue='Exited', data=df, ax=axarr[1, 1])
+sns.histplot(x='HasCrCard', hue='Exited', data=df, ax=axarr[1, 1], multiple='stack', kde=True)
 
 # Menghitung jumlah nilai 0 (tidak Exited) dan nilai 1 (Exited) pada variabel dependen 'Exited'
 zero_count, one_count = df['Exited'].value_counts()
-print("Distribusi variabel dependen:")
+print("Distribusi variabel dependen terhadap beberapa variabel independen setelah SMOTE:")
 print("Exited 0 count:", zero_count)
 print("Exited 1 count:", one_count)
 
-fig.suptitle('Distribusi Variabel Dependen', fontsize=18)
+fig.suptitle('Distribusi Variabel Dependen Terhadap Beberapa Variabel Independen Setelah SMOTE', fontsize=18)
 
 # Menampilkan plot
 plt.show()
@@ -267,10 +366,10 @@ length = len(columns)
 for i, j in zip(columns, range(length)):
     plt.subplot(int(length / 2), 3, j + 1)
     plt.subplots_adjust(wspace=0.2, hspace=0.5)
-    df_num_cols[i].hist(bins=20, edgecolor='black')
+    sns.histplot(df_num_cols[i], bins=20, kde=True, color='skyblue', edgecolor='black')
     plt.title(i)
 
-fig.suptitle('Struktur Variabel Numerik', fontsize=18)
+fig.suptitle('Distribusi Variabel Numerik Setelah SMOTE', fontsize=18)
 plt.show()
 
 # 3
@@ -285,22 +384,37 @@ length = len(columns)
 for i, j in zip(columns, range(length)):
     plt.subplot(int(length/2), 3, j+1)
     plt.subplots_adjust(wspace=0.2, hspace=0.5)
-    df_num_cols[i].hist(bins=20, edgecolor='black')
+    sns.histplot(df_num_cols[i], bins=20, kde=True, color='skyblue', edgecolor='black')
     plt.title(i)
-fig.suptitle('Distribusi Variabel Dependen Terhadap Variabel Lainnya', fontsize=18)
+fig.suptitle('Distribusi Variabel Dependen Terhadap Variabel Lainnya Setelah SMOTE', fontsize=18)
 plt.show()
 
-# 4
-# Menampilkan distribusi variabel kategorikal terhadap variabel dependen
-fig, ax = plt.subplots(figsize=(7, 5))
-sns.countplot(x='Gender_Male', hue='Exited', data=df, ax=ax)
-ax.set_title('Distribusi Variabel Kategorikal Gender_Male Terhadap Variabel Dependen')
-plt.show()
+"""1. **Gender:**
+- Sebelum SMOTE, Female memiliki jumlah yang lebih rendah pada kategori '1' (Exited) dibandingkan dengan Male.
+- Setelah SMOTE, perbedaan jumlah antara Female dan Male pada kategori '1' (Exited) menurun, tetapi masih terdapat perbedaan signifikan.
 
-"""### 2.3.2 Handling Missing Values"""
+2. **Age:**
+- Sebelum SMOTE, kategori umur '19-35' memiliki jumlah Exited yang lebih tinggi dibandingkan dengan '0-18'.
+- Setelah SMOTE, terdapat peningkatan jumlah Exited pada kategori '0-18', namun kategori '19-35' masih memiliki jumlah Exited yang tinggi.
+
+3. **CreditScore:**
+- Sebelum SMOTE, skor kredit di bawah rata-rata memiliki jumlah Exited yang lebih rendah dibandingkan dengan skor kredit di atas rata-rata.
+- Setelah SMOTE, perbedaan jumlah Exited antara skor kredit di bawah rata-rata dan skor kredit di atas rata-rata menurun, tetapi skor kredit di bawah rata-rata masih memiliki jumlah Exited yang lebih rendah.
+
+4. **EstimatedSalary:**
+- Sebelum SMOTE, kategori pendapatan di bawah rata-rata dan di atas rata-rata memiliki jumlah Exited yang cukup seimbang.
+- Setelah SMOTE, perbedaan jumlah Exited antara kategori pendapatan di bawah rata-rata dan di atas rata-rata tetap seimbang.
+
+5. **HasCrCard:**
+- Sebelum SMOTE, terdapat perbedaan yang signifikan antara pemegang kartu kredit (HasCrCard=1) dan bukan pemegang kartu kredit (HasCrCard=0) dalam hal jumlah Exited.
+- Setelah SMOTE, perbedaan jumlah Exited antara pemegang kartu kredit dan bukan pemegang kartu kredit menurun, tetapi pemegang kartu kredit (HasCrCard=1) masih memiliki jumlah Exited yang lebih tinggi.
+
+SMOTE berhasil menyeimbangkan jumlah sampel antara kelas Exited (1) dan kelas Not Exited (0), mengurangi ketidakseimbangan kelas yang dapat memengaruhi kinerja model klasifikasi.
+
+### 2.3.2 Handling Missing Values
+"""
 
 def process_and_display_data(df):
-    print("=== Informasi nilai-nilai yang hilang ===")
     # Menangani nilai yang hilang
     missing_value_len = df.isnull().any().sum()
     if missing_value_len == 0:
@@ -309,7 +423,7 @@ def process_and_display_data(df):
         print(f"Investigasi nilai yang hilang. Jumlah nilai yang hilang: {missing_value_len}")
     print("\n")
 
-    print("=== Jumlah unik untuk setiap variabel ===")
+    print("Jumlah unik untuk setiap variabel")
     # Menampilkan jumlah unik untuk setiap variabel yang telah dipersiapkan
     for index, value in df.nunique().items():
         print(f"{index}\n\t\t\t:{value}")
@@ -332,6 +446,19 @@ df = handle_outliers(df)
 
 # Menampilkan informasi setelah handling outliers
 result_df = process_and_display_data(df)
+
+"""1. **Jumlah Baris:**
+- Sebelum handling outlier, jumlah baris (CustomerId) adalah 15546, sedangkan setelah menggunakan LOF, jumlah baris berkurang menjadi 15532.
+- Hal ini menunjukkan bahwa ada beberapa baris yang diidentifikasi sebagai outlier dan dihapus dari dataset.
+
+2. **EstimatedSalary:**
+- Sebelum handling outlier, jumlah nilai unik pada variabel EstimatedSalary adalah 15880, dan setelah menggunakan LOF, nilai ini berkurang menjadi 15865.
+- Hal ini menunjukkan bahwa ada beberapa nilai yang dianggap sebagai outlier pada variabel EstimatedSalary.
+
+3. **Konsistensi pada Variabel Lain:**
+- Variabel lain seperti Age, CreditScore, HasCrCard, Gender_Male, dan Exited tidak mengalami perubahan signifikan dalam jumlah nilai unik setelah handling outlier.
+- Hal ini menunjukkan bahwa LOF lebih fokus pada identifikasi outlier pada variabel tertentu (dalam hal ini, EstimatedSalary).
+"""
 
 # Sebelum Penanganan Outlier
 numerics = ['int16', 'int32', 'int64', 'float16', 'float32', 'float64']
@@ -400,7 +527,7 @@ plt.show()
 
 PIC : Timmy, Eko
 
-## 3.1 Membagi Data
+## 3.1 Splitting & Scaling Data
 """
 
 def model_prepare(df_model):
@@ -412,10 +539,7 @@ def model_prepare(df_model):
     X_test = sc.transform (X_test)
     return X_train, X_test, y_train, y_test
 
-"""## 3.2 Scaling
-
-## 3.3 Model Training
-"""
+"""## 3.2 Model Training"""
 
 def data_training(X_train, X_test, y_train, y_test):
 
@@ -450,72 +574,90 @@ def data_training(X_train, X_test, y_train, y_test):
     # return df_result
 
 # Model_prepare test, train split 0.2
-X_train, X_test, y_train, y_test = model_prepare(df_model=df_encoded)
+X_train, X_test, y_train, y_test = model_prepare(df_model=df)
 
-"""## 3.3.1 | Logistic Regression"""
+training_result = data_training(X_train, X_test, y_train, y_test)
+training_result
 
-from sklearn.linear_model import LogisticRegression
-log_reg = LogisticRegression(C=1, penalty='l2', solver='liblinear', max_iter=200)
-log_reg.fit(X_train, y_train)
+"""## 3.2.1 | Logistic Regression"""
 
-from sklearn.metrics import confusion_matrix, accuracy_score
-import matplotlib.pyplot as plt
-import seaborn as sns
+# Create the Logistic Regression model
+log_reg_model = LogisticRegression(C=1, penalty='l2', solver='liblinear', max_iter=200)
 
-def predict_and_plot(model, inputs, targets, name=''):
-    preds = model.predict(inputs)
-    accuracy = accuracy_score(targets, preds)
-    print("Accuracy: {:.2f}%".format(accuracy * 100))
+# Fit the SVM model to the training data
+log_reg_model.fit(X_train, y_train)
 
-    cf = confusion_matrix(targets, preds, normalize='true')
-    plt.figure()
-    sns.heatmap(cf, annot=True)
-    plt.xlabel('Prediction')
-    plt.ylabel('Target')
-    plt.title('{} Confusion Matrix'.format(name))
+# Make predictions on the training data
+y_train_pred = log_reg_model.predict(X_train)
 
-    return preds
+# Make predictions on the validation data
+y_test_pred = log_reg_model.predict(X_test)
 
-# Predict and plot on the training data
-train_preds = predict_and_plot(log_reg, X_train, y_train, 'Train')
+# Calculate the training accuracy
+train_accuracy = accuracy_score(y_train, y_train_pred)
 
-# Predict and plot on the validation data
-val_preds = predict_and_plot(log_reg, X_test, y_test, 'Validation')
+# Calculate the validation accuracy
+val_accuracy = accuracy_score(y_test, y_test_pred)
 
-"""## 3.3.2 | KNN"""
+print("Training Accuracy:", train_accuracy)
+print("Validation Accuracy:", val_accuracy)
 
-from sklearn.neighbors import KNeighborsClassifier
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score, confusion_matrix
+# Create confusion matrices
+train_confusion = confusion_matrix(y_train, y_train_pred, normalize='true')
+val_confusion = confusion_matrix(y_test, y_test_pred, normalize='true')
 
-# Split the data into training and validation sets
-X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)
+# Plot the confusion matrices
+plt.figure(figsize=(12, 5))
+plt.subplot(1, 2, 1)
+sns.heatmap(train_confusion, annot=True, fmt='.2f', cmap='Blues', cbar=True)
+plt.xlabel('Predicted')
+plt.ylabel('Actual')
+plt.title('Confusion Matrix (Training)')
+
+plt.subplot(1, 2, 2)
+sns.heatmap(val_confusion, annot=True, fmt='.2f', cmap='Blues', cbar=True)
+plt.xlabel('Predicted')
+plt.ylabel('Actual')
+plt.title('Confusion Matrix (Validation)')
+plt.show()
+
+"""## 3.2.2 | KNN"""
 
 # Create a KNN classifier (you can adjust the number of neighbors 'n_neighbors')
 knn_model = KNeighborsClassifier(n_neighbors=5)
 
-# Fit the KNN model to the training data
+# Fit the SVM model to the training data
 knn_model.fit(X_train, y_train)
 
 # Make predictions on the training data
 y_train_pred = knn_model.predict(X_train)
 
 # Make predictions on the validation data
-y_val_pred = knn_model.predict(X_val)
+y_test_pred = knn_model.predict(X_test)
 
-# Calculate the training and validation accuracies
+# Calculate the training accuracy
 train_accuracy = accuracy_score(y_train, y_train_pred)
-val_accuracy = accuracy_score(y_val, y_val_pred)
+
+# Calculate the validation accuracy
+val_accuracy = accuracy_score(y_test, y_test_pred)
 
 print("Training Accuracy:", train_accuracy)
 print("Validation Accuracy:", val_accuracy)
 
-# Create a confusion matrix for validation data
-confusion = confusion_matrix(y_val, y_val_pred)
+# Create confusion matrices
+train_confusion = confusion_matrix(y_train, y_train_pred, normalize='true')
+val_confusion = confusion_matrix(y_test, y_test_pred, normalize='true')
 
-# Plot the confusion matrix
-plt.figure(figsize=(6, 4))
-sns.heatmap(confusion, annot=True, fmt='d', cmap='Blues', cbar=False)
+# Plot the confusion matrices
+plt.figure(figsize=(12, 5))
+plt.subplot(1, 2, 1)
+sns.heatmap(train_confusion, annot=True, fmt='.2f', cmap='Blues', cbar=True)
+plt.xlabel('Predicted')
+plt.ylabel('Actual')
+plt.title('Confusion Matrix (Training)')
+
+plt.subplot(1, 2, 2)
+sns.heatmap(val_confusion, annot=True, fmt='.2f', cmap='Blues', cbar=True)
 plt.xlabel('Predicted')
 plt.ylabel('Actual')
 plt.title('Confusion Matrix (Validation)')
@@ -524,10 +666,6 @@ plt.show()
 """<a id="3.3.2"></a>
 > <span style='font-size:15px; font-family:Verdana;color: #254E58;'><b> Hyperparameter Tuning of KNN </b></span>
 """
-
-from sklearn.neighbors import KNeighborsClassifier
-from sklearn.model_selection import GridSearchCV
-from sklearn.metrics import accuracy_score
 
 # Define the hyperparameter grid to search
 param_grid = {
@@ -548,40 +686,79 @@ best_model = grid_search.best_estimator_
 y_train_pred = best_model.predict(X_train)
 
 # Make predictions on the validation data using the best model
-y_val_pred = best_model.predict(X_val)
+y_test_pred = best_model.predict(X_test)
 
 # Calculate the training and validation accuracies
 train_accuracy = accuracy_score(y_train, y_train_pred)
-val_accuracy = accuracy_score(y_val, y_val_pred)
+val_accuracy = accuracy_score(y_test, y_test_pred)
 
-print("Training Accuracy with Best Hyperparameters:", train_accuracy)
-print("Validation Accuracy with Best Hyperparameters:", val_accuracy)
+print("Training Accuracy:", train_accuracy)
+print("Validation Accuracy:", val_accuracy)
 
-"""## 3.3.3 | Decision Tree"""
+# Create confusion matrices
+train_confusion = confusion_matrix(y_train, y_train_pred, normalize='true')
+val_confusion = confusion_matrix(y_test, y_test_pred, normalize='true')
 
-from sklearn.tree import DecisionTreeClassifier
-from sklearn.metrics import accuracy_score
+# Plot the confusion matrices
+plt.figure(figsize=(12, 5))
+plt.subplot(1, 2, 1)
+sns.heatmap(train_confusion, annot=True, fmt='.2f', cmap='Blues', cbar=True)
+plt.xlabel('Predicted')
+plt.ylabel('Actual')
+plt.title('Confusion Matrix (Training)')
+
+plt.subplot(1, 2, 2)
+sns.heatmap(val_confusion, annot=True, fmt='.2f', cmap='Blues', cbar=True)
+plt.xlabel('Predicted')
+plt.ylabel('Actual')
+plt.title('Confusion Matrix (Validation)')
+plt.show()
+
+"""## 3.2.3 | Decision Tree"""
 
 # Create the Decision Tree model
 decision_tree_model = DecisionTreeClassifier(random_state=42)
 
-# Fit the model to the training data
+# Fit the SVM model to the training data
 decision_tree_model.fit(X_train, y_train)
 
-# Evaluate the model on the training and validation data
-train_accuracy = decision_tree_model.score(X_train, y_train)
-val_accuracy = decision_tree_model.score(X_test, y_test)
+# Make predictions on the training data
+y_train_pred = decision_tree_model.predict(X_train)
 
-# Print the results
+# Make predictions on the validation data
+y_test_pred = decision_tree_model.predict(X_test)
+
+# Calculate the training accuracy
+train_accuracy = accuracy_score(y_train, y_train_pred)
+
+# Calculate the validation accuracy
+val_accuracy = accuracy_score(y_test, y_test_pred)
+
 print("Training Accuracy:", train_accuracy)
 print("Validation Accuracy:", val_accuracy)
+
+# Create confusion matrices
+train_confusion = confusion_matrix(y_train, y_train_pred, normalize='true')
+val_confusion = confusion_matrix(y_test, y_test_pred, normalize='true')
+
+# Plot the confusion matrices
+plt.figure(figsize=(12, 5))
+plt.subplot(1, 2, 1)
+sns.heatmap(train_confusion, annot=True, fmt='.2f', cmap='Blues', cbar=True)
+plt.xlabel('Predicted')
+plt.ylabel('Actual')
+plt.title('Confusion Matrix (Training)')
+
+plt.subplot(1, 2, 2)
+sns.heatmap(val_confusion, annot=True, fmt='.2f', cmap='Blues', cbar=True)
+plt.xlabel('Predicted')
+plt.ylabel('Actual')
+plt.title('Confusion Matrix (Validation)')
+plt.show()
 
 """<a id="3.3.3"></a>
 > <span style='font-size:15px; font-family:Verdana;color: #254E58;'><b> Hyperparameter Tuning Of Decision Tree </b></span>
 """
-
-from sklearn.tree import DecisionTreeClassifier
-from sklearn.model_selection import GridSearchCV
 
 param_grid = {
     'max_depth': [None, 5, 10, 15, 20],
@@ -611,42 +788,70 @@ val_accuracy = best_model.score(X_test, y_test)
 print("Training Accuracy:", train_accuracy)
 print("Validation Accuracy:", val_accuracy)
 
-"""## 3.3.4 | Random Forest"""
+# Create confusion matrices
+train_confusion = confusion_matrix(y_train, y_train_pred, normalize='true')
+val_confusion = confusion_matrix(y_test, y_test_pred, normalize='true')
 
-from sklearn.ensemble import RandomForestClassifier
-model_2 = RandomForestClassifier(n_jobs =-1, random_state = 42)
-model_2.fit(X_train,y_train)
+# Plot the confusion matrices
+plt.figure(figsize=(12, 5))
+plt.subplot(1, 2, 1)
+sns.heatmap(train_confusion, annot=True, fmt='.2f', cmap='Blues', cbar=True)
+plt.xlabel('Predicted')
+plt.ylabel('Actual')
+plt.title('Confusion Matrix (Training)')
 
-model_2.score(X_train,y_train)
+plt.subplot(1, 2, 2)
+sns.heatmap(val_confusion, annot=True, fmt='.2f', cmap='Blues', cbar=True)
+plt.xlabel('Predicted')
+plt.ylabel('Actual')
+plt.title('Confusion Matrix (Validation)')
+plt.show()
 
-def predict_and_plot(model, inputs,targets, name = ''):
-    preds = model.predict(inputs)
-    accuracy = accuracy_score(targets, preds)
-    print("Accuracy: {:.2f}%".format(accuracy*100))
+"""## 3.2.4 | Random Forest"""
 
-    cf = confusion_matrix(targets, preds, normalize = 'true')
-    plt.figure()
-    sns.heatmap(cf, annot = True)
-    plt.xlabel('Prediction')
-    plt.ylabel('Target')
-    plt.title('{} Confusion Matrix'. format(name))
+# Create the Random Forest model
+random_forest_model = RandomForestClassifier(n_jobs =-1, random_state = 42)
 
-    return preds
+# Fit the SVM model to the training data
+random_forest_model.fit(X_train, y_train)
 
-# Predict and plot on the training data
-train_preds = predict_and_plot(model_2, X_train, y_train, 'Train')
+# Make predictions on the training data
+y_train_pred = random_forest_model.predict(X_train)
 
-# Predict and plot on the validation data
-val_preds = predict_and_plot(model_2, X_test, y_test, 'Validation')
+# Make predictions on the validation data
+y_test_pred = random_forest_model.predict(X_test)
+
+# Calculate the training accuracy
+train_accuracy = accuracy_score(y_train, y_train_pred)
+
+# Calculate the validation accuracy
+val_accuracy = accuracy_score(y_test, y_test_pred)
+
+print("Training Accuracy:", train_accuracy)
+print("Validation Accuracy:", val_accuracy)
+
+# Create confusion matrices
+train_confusion = confusion_matrix(y_train, y_train_pred, normalize='true')
+val_confusion = confusion_matrix(y_test, y_test_pred, normalize='true')
+
+# Plot the confusion matrices
+plt.figure(figsize=(12, 5))
+plt.subplot(1, 2, 1)
+sns.heatmap(train_confusion, annot=True, fmt='.2f', cmap='Blues', cbar=True)
+plt.xlabel('Predicted')
+plt.ylabel('Actual')
+plt.title('Confusion Matrix (Training)')
+
+plt.subplot(1, 2, 2)
+sns.heatmap(val_confusion, annot=True, fmt='.2f', cmap='Blues', cbar=True)
+plt.xlabel('Predicted')
+plt.ylabel('Actual')
+plt.title('Confusion Matrix (Validation)')
+plt.show()
 
 """<a id="3.3.4"></a>
 > <span style='font-size:15px; font-family:Verdana;color: #254E58;'><b>Hyperparameter Tuning of Random Forest </b></span>
 """
-
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import GridSearchCV
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import accuracy_score
 
 param_grid = {
     'n_estimators': [10, 20, 30],  # Adjust the number of trees in the forest
@@ -676,10 +881,24 @@ val_accuracy = best_model.score(X_test, y_test)
 print("Training Accuracy:", train_accuracy)
 print("Validation Accuracy:", val_accuracy)
 
-"""## 3.3.5 | Support Vector Classifier"""
+# Plot the confusion matrices
+plt.figure(figsize=(12, 5))
+plt.subplot(1, 2, 1)
+sns.heatmap(train_confusion, annot=True, fmt='.2f', cmap='Blues', cbar=True)
+plt.xlabel('Predicted')
+plt.ylabel('Actual')
+plt.title('Confusion Matrix (Training)')
 
-X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)
+plt.subplot(1, 2, 2)
+sns.heatmap(val_confusion, annot=True, fmt='.2f', cmap='Blues', cbar=True)
+plt.xlabel('Predicted')
+plt.ylabel('Actual')
+plt.title('Confusion Matrix (Validation)')
+plt.show()
 
+"""## 3.2.5 | Support Vector Classifier"""
+
+# Create the SVM model
 svm_model = SVC(kernel='linear')
 
 # Fit the SVM model to the training data
@@ -689,42 +908,79 @@ svm_model.fit(X_train, y_train)
 y_train_pred = svm_model.predict(X_train)
 
 # Make predictions on the validation data
-y_val_pred = svm_model.predict(X_val)
+y_val_pred = svm_model.predict(X_test)
 
 # Calculate the training accuracy
 train_accuracy = accuracy_score(y_train, y_train_pred)
 
 # Calculate the validation accuracy
-val_accuracy = accuracy_score(y_val, y_val_pred)
+val_accuracy = accuracy_score(y_test, y_test_pred)
 
 print("Training Accuracy:", train_accuracy)
 print("Validation Accuracy:", val_accuracy)
 
 # Create confusion matrices
-train_confusion = confusion_matrix(y_train, y_train_pred)
-val_confusion = confusion_matrix(y_val, y_val_pred)
+train_confusion = confusion_matrix(y_train, y_train_pred, normalize='true')
+val_confusion = confusion_matrix(y_test, y_test_pred, normalize='true')
 
 # Plot the confusion matrices
 plt.figure(figsize=(12, 5))
 plt.subplot(1, 2, 1)
-sns.heatmap(train_confusion, annot=True, fmt='d', cmap='Blues', cbar=False)
+sns.heatmap(train_confusion, annot=True, fmt='.2f', cmap='Blues', cbar=True)
 plt.xlabel('Predicted')
 plt.ylabel('Actual')
 plt.title('Confusion Matrix (Training)')
 
 plt.subplot(1, 2, 2)
-sns.heatmap(val_confusion, annot=True, fmt='d', cmap='Blues', cbar=False)
+sns.heatmap(val_confusion, annot=True, fmt='.2f', cmap='Blues', cbar=True)
 plt.xlabel('Predicted')
 plt.ylabel('Actual')
 plt.title('Confusion Matrix (Validation)')
 plt.show()
 
-"""## 3.3.6 | AdaBoost Classifier"""
+"""## 3.2.6 | AdaBoost Classifier"""
 
-from sklearn.ensemble import AdaBoostClassifier
-from sklearn.metrics import accuracy_score, confusion_matrix
+# Create an AdaBoost classifier model
+adaboost_model = AdaBoostClassifier(n_estimators=50, random_state=42)
 
-# Create an AdaBoost classifier
+# Fit the SVM model to the training data
+adaboost_model.fit(X_train, y_train)
+
+# Make predictions on the training data
+y_train_pred = adaboost_model.predict(X_train)
+
+# Make predictions on the validation data
+y_val_pred = adaboost_model.predict(X_test)
+
+# Calculate the training accuracy
+train_accuracy = accuracy_score(y_train, y_train_pred)
+
+# Calculate the validation accuracy
+val_accuracy = accuracy_score(y_test, y_test_pred)
+
+print("Training Accuracy:", train_accuracy)
+print("Validation Accuracy:", val_accuracy)
+
+# Create confusion matrices
+train_confusion = confusion_matrix(y_train, y_train_pred, normalize='true')
+val_confusion = confusion_matrix(y_test, y_test_pred, normalize='true')
+
+# Plot the confusion matrices
+plt.figure(figsize=(12, 5))
+plt.subplot(1, 2, 1)
+sns.heatmap(train_confusion, annot=True, fmt='.2f', cmap='Blues', cbar=True)
+plt.xlabel('Predicted')
+plt.ylabel('Actual')
+plt.title('Confusion Matrix (Training)')
+
+plt.subplot(1, 2, 2)
+sns.heatmap(val_confusion, annot=True, fmt='.2f', cmap='Blues', cbar=True)
+plt.xlabel('Predicted')
+plt.ylabel('Actual')
+plt.title('Confusion Matrix (Validation)')
+plt.show()
+
+# Create an AdaBoost classifier model
 adaboost_model = AdaBoostClassifier(n_estimators=50, random_state=42)
 
 # Fit the AdaBoost model to the training data
@@ -734,20 +990,20 @@ adaboost_model.fit(X_train, y_train)
 y_train_pred_adaboost = adaboost_model.predict(X_train)
 
 # Make predictions on the validation data
-y_val_pred_adaboost = adaboost_model.predict(X_val)
+y_test_pred_adaboost = adaboost_model.predict(X_test)
 
 # Calculate the training accuracy
 train_accuracy_adaboost = accuracy_score(y_train, y_train_pred_adaboost)
 
 # Calculate the validation accuracy
-val_accuracy_adaboost = accuracy_score(y_val, y_val_pred_adaboost)
+val_accuracy_adaboost = accuracy_score(y_test, y_test_pred_adaboost)
 
 # Print the training and validation accuracies
 print("AdaBoost Training Accuracy:", train_accuracy_adaboost)
 print("AdaBoost Validation Accuracy:", val_accuracy_adaboost)
 
 # Create a confusion matrix for validation
-confusion_adaboost = confusion_matrix(y_val, y_val_pred_adaboost)
+confusion_adaboost = confusion_matrix(y_test, y_test_pred_adaboost)
 
 # Plot the confusion matrix
 plt.figure()
@@ -757,9 +1013,47 @@ plt.ylabel('Actual')
 plt.title('AdaBoost Confusion Matrix (Validation)')
 plt.show()
 
-"""## 3.3.7 | Gradient Boosting Classifier"""
+"""## 3.2.7 | Gradient Boosting Classifier"""
 
-from sklearn.ensemble import GradientBoostingClassifier
+# Create a Gradient Boosting classifier
+gbm_model = GradientBoostingClassifier(n_estimators=100, max_depth=3, random_state=42)
+
+# Fit the SVM model to the training data
+gbm_model.fit(X_train, y_train)
+
+# Make predictions on the training data
+y_train_pred = gbm_model.predict(X_train)
+
+# Make predictions on the validation data
+y_val_pred = gbm_model.predict(X_test)
+
+# Calculate the training accuracy
+train_accuracy = accuracy_score(y_train, y_train_pred)
+
+# Calculate the validation accuracy
+val_accuracy = accuracy_score(y_test, y_test_pred)
+
+print("Training Accuracy:", train_accuracy)
+print("Validation Accuracy:", val_accuracy)
+
+# Create confusion matrices
+train_confusion = confusion_matrix(y_train, y_train_pred, normalize='true')
+val_confusion = confusion_matrix(y_test, y_test_pred, normalize='true')
+
+# Plot the confusion matrices
+plt.figure(figsize=(12, 5))
+plt.subplot(1, 2, 1)
+sns.heatmap(train_confusion, annot=True, fmt='.2f', cmap='Blues', cbar=True)
+plt.xlabel('Predicted')
+plt.ylabel('Actual')
+plt.title('Confusion Matrix (Training)')
+
+plt.subplot(1, 2, 2)
+sns.heatmap(val_confusion, annot=True, fmt='.2f', cmap='Blues', cbar=True)
+plt.xlabel('Predicted')
+plt.ylabel('Actual')
+plt.title('Confusion Matrix (Validation)')
+plt.show()
 
 # Create a Gradient Boosting classifier
 gbm_model = GradientBoostingClassifier(n_estimators=100, max_depth=3, random_state=42)
@@ -771,21 +1065,19 @@ gbm_model.fit(X_train, y_train)
 y_train_pred_gbm = gbm_model.predict(X_train)
 
 # Make predictions on the validation data
-y_val_pred_gbm = gbm_model.predict(X_val)
+y_test_pred_gbm = gbm_model.predict(X_test)
 
 # Calculate the training accuracy
 train_accuracy_gbm = accuracy_score(y_train, y_train_pred_gbm)
 
 # Calculate the validation accuracy
-val_accuracy_gbm = accuracy_score(y_val, y_val_pred_gbm)
+val_accuracy_gbm = accuracy_score(y_test, y_test_pred_gbm)
 
 # Print the training and validation accuracies
 print("GBM Training Accuracy:", train_accuracy_gbm)
 print("GBM Validation Accuracy:", val_accuracy_gbm)
 
-"""## 3.3.8 | XGBoost Classifier"""
-
-from xgboost import XGBClassifier
+"""## 3.2.8 | XGBoost Classifier"""
 
 # Create an XGBoost classifier
 xgboost_model = XGBClassifier(n_estimators=100, max_depth=3, random_state=42)
@@ -797,13 +1089,13 @@ xgboost_model.fit(X_train, y_train)
 y_train_pred_xgboost = xgboost_model.predict(X_train)
 
 # Make predictions on the validation data
-y_val_pred_xgboost = xgboost_model.predict(X_val)
+y_test_pred_xgboost = xgboost_model.predict(X_test)
 
 # Calculate the training accuracy
 train_accuracy_xgboost = accuracy_score(y_train, y_train_pred_xgboost)
 
 # Calculate the validation accuracy
-val_accuracy_xgboost = accuracy_score(y_val, y_val_pred_xgboost)
+val_accuracy_xgboost = accuracy_score(y_test, y_test_pred_xgboost)
 
 # Print the training and validation accuracies
 print("XGBoost Training Accuracy:", train_accuracy_xgboost)
@@ -823,9 +1115,7 @@ y_pred = xgb_model.predict(X_test)
 print(classification_report(y_test, y_pred, digits=2))
 print("Accuracy score of Tuned XGBoost Regression: ", accuracy_score(y_test, y_pred))
 
-"""## 3.3.9 | LightGBM Classifier"""
-
-from lightgbm import LGBMClassifier
+"""## 3.2.9 | LightGBM Classifier"""
 
 # Create a Gradient Boosting classifier
 lgbm_model = LGBMClassifier(n_estimators=100, max_depth=3, random_state=42)
@@ -837,13 +1127,13 @@ lgbm_model.fit(X_train, y_train)
 y_train_pred_lgbm = lgbm_model.predict(X_train)
 
 # Make predictions on the validation data
-y_val_pred_lgbm = lgbm_model.predict(X_val)
+y_test_pred_lgbm = lgbm_model.predict(X_test)
 
 # Calculate the training accuracy
 train_accuracy_lgbm = accuracy_score(y_train, y_train_pred_lgbm)
 
 # Calculate the validation accuracy
-val_accuracy_lgbm = accuracy_score(y_val, y_val_pred_lgbm)
+val_accuracy_lgbm = accuracy_score(y_test, y_test_pred_lgbm)
 
 # Print the training and validation accuracies
 print("LightGBM Training Accuracy:", train_accuracy_lgbm)
@@ -864,9 +1154,6 @@ lgbm_model.fit(X_train, y_train)
 y_pred = lgbm_model.predict(X_test)
 print(classification_report(y_test, y_pred, digits=2))
 print("Accuracy score of tuned LightGBM model: ", accuracy_score(y_test, y_pred))
-
-training_result = data_training(X_train, X_test, y_train, y_test)
-training_result
 
 """# 4. Model Deployment
 
